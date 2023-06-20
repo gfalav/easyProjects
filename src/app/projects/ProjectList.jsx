@@ -3,12 +3,14 @@ import React from "react"
 import { blue } from "@mui/material/colors"
 import { Link } from "react-router-dom"
 import { useRecoilValue } from "recoil"
-import { user } from "../../comps/recoil/recoil"
+import { drawerWidth, user } from "../../comps/recoil/recoil"
 import supabase from "../../comps/sb/Sb"
 
 const ProjectList = () => {
     const [projects, setProjects] = React.useState([])
     const usr = useRecoilValue(user)
+    const dw = useRecoilValue(drawerWidth)
+    const windowWidth = window.innerWidth - dw - 40
 
     async function getProjects() {
         if (usr) {
@@ -45,6 +47,7 @@ const ProjectList = () => {
                 flexDirection: 'row',
                 justifyContent:'center',
                 m: 2,
+                width: windowWidth,
                 minWidth: {sm:400, md: 800}
             }}>
                 <Box sx={{ flexGrow: 1}}>

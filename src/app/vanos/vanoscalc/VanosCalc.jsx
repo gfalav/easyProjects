@@ -1,16 +1,21 @@
-import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField } from "@mui/material"
+import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material"
 import React from "react"
 import { useParams } from "react-router-dom"
 import supabase from "../../../comps/sb/Sb"
 import { newton, ph, pv } from "./VanosAux"
+import { useRecoilValue } from "recoil"
+import { drawerWidth } from "../../../comps/recoil/recoil"
 
 const VanosCalc = () => {
     const vanoId = useParams().vanoId
+    const dw = useRecoilValue(drawerWidth)
+    const windowWidth = window.innerWidth - dw - 40
     const [vano, setVano] = React.useState(null)
     const [cond, setCond] = React.useState(null)
     const [zona, setZona] = React.useState(null)
     const [condClimas, setCondClimas] = React.useState([])
-    const [tiroMax, setTiroMax] = React.useState(1)
+    const [tiroMax, setTiroMax] = React.useState('')
+    const [tensionMax, setTensionMax] = React.useState('')
     const [calcMec, setCalcMec] = React.useState([])
 
     React.useEffect( () => {
@@ -77,9 +82,24 @@ const VanosCalc = () => {
     const handleTiro = (e) => {
         if (e.target.value >= 0) {
             setTiroMax(Number(e.target.value))
+            setTensionMax((Number(e.target.value)/cond.seccion))
         } else {
             setTiroMax(0)
         }
+    }
+
+    const handleTension = (e) => {
+        if (e.target.value >= 0) {
+            setTensionMax(Number(e.target.value))
+            setTiroMax((Number(e.target.value*cond.seccion)))
+        } else {
+            setTensionMax(0)
+            setTiroMax(0)
+        }
+    }
+
+    const saveCalc = () => {
+
     }
 
     const calcMecanico = () => {
@@ -114,7 +134,8 @@ const VanosCalc = () => {
                 T: T1,
                 FT: f1,
                 FH: f1h,
-                FV: f1v
+                FV: f1v,
+                Ang: ang1
             })
             for (let c2 of arrConds2) {
                 if (c1.id !== c2.id) {
@@ -142,7 +163,8 @@ const VanosCalc = () => {
                             T: T2,
                             FT: f2,
                             FH: f2h,
-                            FV: f2v
+                            FV: f2v,
+                            Ang: ang2
                         })      
                     }
                 }                
@@ -160,28 +182,34 @@ const VanosCalc = () => {
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'flex-start',
-            mt: 2, ml: 2, width: '100%'
+            mt: 2, ml: 2, width: windowWidth
             
         }}>
+            <Typography variant="h4" sx={{ ml: 4}}>Cálculo del vano: <b>{vano && vano.orden}</b></Typography>
             <Box sx={{
                 display:' flex',
-                flexDirection: 'row'
+                flexDirection: 'row',
+                mt: 2, mb: 1
             }}>
-                {cond && <Box sx={{ m: 5}}>
+                {cond && <Box sx={{ ml: 4 }}>
                     <Box sx={{ mb: 1}}><b>Datos del conductor: {cond.nombre}</b></Box>
-                    <Box>Sección: <b>{cond.seccion}</b></Box>
-                    <Box>Diametro: <b>{cond.diametro}</b></Box>
-                    <Box>Peso: <b>{cond.peso}</b></Box>
-                    <Box>Rotura: <b>{cond.rmec}</b></Box>
-                    <Box>Módulo de Young E: <b>{cond.coef_e}</b></Box>
-                    <Box>Coef de Dilatación Temp: <b>{cond.coef_t}</b></Box>
+                    <Box>Sección [mm2]: <b>{cond.seccion}</b></Box>
+                    <Box>Diametro [mm]: <b>{cond.diametro}</b></Box>
+                    <Box>Peso [kg/km]: <b>{cond.peso}</b></Box>
+                    <Box>Rotura [kg]: <b>{cond.rmec}</b></Box>
+                    <Box>Módulo de Young E [kg/mm2]: <b>{cond.coef_e}</b></Box>
+                    <Box>Coef de Dilatación Temp [1/°C]: <b>{cond.coef_t}</b></Box>
                 </Box>}
-                <Box sx={{ m: 5 }}>
+                <Box sx={{ ml: 16 }}>
                     <Box sx={{ mb: 1}}><b>Zona Climática: {zona && zona.nombre}</b></Box>
-                    <Box sx={{ mb: 1}}><b>Longitud del Vano: {vano && vano.longitud}</b></Box>
+                    <Box sx={{ mb: 1}}><b>Longitud del Vano [m]: {vano && vano.longitud}</b></Box>
                     <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
-                        <TextField id="maxTiro" label="Tiro máximo" size="small" type="number" value={tiroMax} sx={{ mt: 2 }} onChange={handleTiro} />
-                        <Button onClick={calcMecanico}>Calcular</Button>
+                        <TextField id="maxTiro" label="Tiro máx [kg]" size="small" type="number" value={tiroMax && tiroMax.toFixed(3)} sx={{ mt: 1 }} onChange={handleTiro} />
+                        <TextField id="maxTension" label="Tensión máx [kg/mm2]" size="small" type="number" value={tensionMax && tensionMax.toFixed(3)} sx={{ mt: 1 }} onChange={handleTension} />
+                    </Box>
+                    <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
+                        <Button variant="contained" onClick={calcMecanico} sx={{ m: 1.5}}>Calcular</Button>
+                        <Button variant="contained" color="error" onClick={saveCalc} sx={{ m: 1.5}}>Guardar</Button>
                     </Box>
                 </Box>
             </Box>
@@ -190,14 +218,15 @@ const VanosCalc = () => {
                     <TableHead>
                         <TableRow className="classes.root">
                             <TableCell align="center">Condición</TableCell>
-                            <TableCell align="center">Temperatura</TableCell>
-                            <TableCell align="center">Viento</TableCell>
-                            <TableCell align="center">Hielo</TableCell>
-                            <TableCell align="center">Tensión</TableCell>
-                            <TableCell align="center">Tiro</TableCell>
-                            <TableCell align="center">Flecha T</TableCell>
-                            <TableCell align="center">Flecha H</TableCell>
-                            <TableCell align="center">Flecha V</TableCell>
+                            <TableCell align="center">Temp [°C]</TableCell>
+                            <TableCell align="center">Viento [km/h]</TableCell>
+                            <TableCell align="center">Hielo [mm]</TableCell>
+                            <TableCell align="center">Tensión [kg/mm2]</TableCell>
+                            <TableCell align="center">Tiro [kg]</TableCell>
+                            <TableCell align="center">Flecha T [m]</TableCell>
+                            <TableCell align="center">Flecha H [m]</TableCell>
+                            <TableCell align="center">Flecha V [m]</TableCell>
+                            <TableCell align="center">Ángulo [°]</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -212,6 +241,7 @@ const VanosCalc = () => {
                                 <TableCell align="center">{c.FT.toFixed(2)}</TableCell>
                                 <TableCell align="center">{c.FH.toFixed(2)}</TableCell>
                                 <TableCell align="center">{c.FV.toFixed(2)}</TableCell>
+                                <TableCell align="center">{c.Ang.toFixed(2)}</TableCell>
                             </TableRow>
                         })}
                     </TableBody>

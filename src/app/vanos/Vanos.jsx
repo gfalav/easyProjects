@@ -5,12 +5,16 @@ import { blue } from "@mui/material/colors"
 import { Box, Button, IconButton, MenuItem, TextField, Typography } from "@mui/material"
 import DeleteIcon from '@mui/icons-material/Delete'
 import CalculateIcon from "@mui/icons-material/Calculate"
+import { useRecoilValue } from "recoil"
+import { drawerWidth } from "../../comps/recoil/recoil"
 
 const Vanos = () => {
     const projectId = useParams().projectId
+    const dw = useRecoilValue(drawerWidth)    
     const [vanos, setVanos] = React.useState([])
     const [conductors, setConductors] = React.useState([])
     const [zonas, setZonas] = React.useState([])
+    const vanosWidth = window.innerWidth - dw - 40
 
     const getVanos = async () => {
         const resVanos = await supabase
@@ -138,6 +142,7 @@ const Vanos = () => {
                 flexDirection: 'row',
                 justifyContent:'center',
                 m: 2,
+                width: vanosWidth,
                 minWidth: {sm:400, md: 800}
             }}>
                 <Box sx={{ flexGrow: 1}}>
