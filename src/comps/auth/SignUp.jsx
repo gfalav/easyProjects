@@ -33,7 +33,6 @@ const SignUp = () => {
                 password: values.password
             })
             if (data.user) {
-                console.log('Data: ', data)
                 await supabase
                     .from('userdata')
                     .insert([{

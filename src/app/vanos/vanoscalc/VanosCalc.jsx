@@ -72,7 +72,7 @@ const VanosCalc = () => {
                 setZona(results[2].filter( zona => zona.id === results[0].zona)[0])
                 setCondClimas(results[3].filter( condclima => condclima.zonaId === results[0].zona))
             })
-    }, [])
+    })
 
     const handleTiro = (e) => {
         if (e.target.value >= 0) {
@@ -196,8 +196,8 @@ const VanosCalc = () => {
                             <TableCell align="center">Tensión</TableCell>
                             <TableCell align="center">Tiro</TableCell>
                             <TableCell align="center">Flecha T</TableCell>
-                            <TableCell align="center">Flecha V</TableCell>
                             <TableCell align="center">Flecha H</TableCell>
+                            <TableCell align="center">Flecha V</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
