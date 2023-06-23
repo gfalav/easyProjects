@@ -1,10 +1,12 @@
-import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material"
+import { Box, Button, TextField, Typography } from "@mui/material"
 import React from "react"
-import { useParams } from "react-router-dom"
+import { Link, useParams } from "react-router-dom"
 import supabase from "../../../comps/sb/Sb"
-import { newton, ph, pv } from "./VanosAux"
+import { calcMecanico } from "./VanosAux"
 import { useRecoilValue } from "recoil"
 import { drawerWidth } from "../../../comps/recoil/recoil"
+import TablaCalcMec from "./TablaCalcMec"
+import TablaTesado from "./TablaTesado"
 
 const VanosCalc = () => {
     const vanoId = useParams().vanoId
@@ -16,7 +18,9 @@ const VanosCalc = () => {
     const [condClimas, setCondClimas] = React.useState([])
     const [tiroMax, setTiroMax] = React.useState('')
     const [tensionMax, setTensionMax] = React.useState('')
+    const [flechaMax, setFlechaMax] = React.useState('')
     const [calcMec, setCalcMec] = React.useState([])
+    const [tTesado, setTTesado] = React.useState([])
 
     React.useEffect( () => {
         const getVano = async () => {
@@ -27,7 +31,7 @@ const VanosCalc = () => {
                 .limit(1)
                 .single()
             if (resVano.error) {
-                alert('Error fetch vano'+resVano.error.message)
+                alert('Error fetch vano: '+resVano.error.message)
             }
             if (resVano.data) {
                 return resVano.data
@@ -70,14 +74,45 @@ const VanosCalc = () => {
                 }
         }
 
-        Promise.all([getVano(), getCond(), getZona(), getCondClimas()])
+        const getCalcMecanico = async (vanoId) => {
+            const resCalcMecanico = await supabase
+                .from('calcvanos')
+                .select()
+                .eq('vanoId', vanoId)
+                if( resCalcMecanico.error) {
+                    alert('Error fetch calcvanos' + resCalcMecanico.error.message)
+                }
+                if (resCalcMecanico.data) {
+                    return resCalcMecanico.data
+                }
+        }
+
+        const getTesado = async (vanoId) => {
+            const resTesado = await supabase
+                .from('tesados')
+                .select()
+                .eq('vanoId', vanoId)
+                if( resTesado.error) {
+                    alert('Error fetch calcvanos' + resTesado.error.message)
+                }
+                if (resTesado.data) {
+                    return resTesado.data
+                }
+        }
+
+        Promise.all([getVano(), getCond(), getZona(), getCondClimas(), getCalcMecanico(vanoId), getTesado(vanoId)])
             .then( (results) => {
                 setVano(results[0])
                 setCond(results[1].filter( cond => cond.id === results[0].conductor)[0])
                 setZona(results[2].filter( zona => zona.id === results[0].zona)[0])
                 setCondClimas(results[3].filter( condclima => condclima.zonaId === results[0].zona))
+                setCalcMec(results[4])
+                setTTesado(results[5])
+                setFlechaMax(results[0].flechaMax)
+                setTiroMax(results[0].tiroMax)
+                setTensionMax(results[0].tiroMax/results[1].filter( cond => cond.id === results[0].conductor)[0].seccion)
             })
-    })
+    }, [vanoId])
 
     const handleTiro = (e) => {
         if (e.target.value >= 0) {
@@ -98,83 +133,44 @@ const VanosCalc = () => {
         }
     }
 
-    const saveCalc = () => {
+    const saveCalc = async () => {
+        await supabase
+            .from('vanos')
+            .update(vano)
+            .eq('id', vanoId)
+        await supabase
+            .from('calcvanos')
+            .delete()
+            .eq('vanoId',vanoId)
+            .then( async () => {
+                await supabase
+                    .from('calcvanos')
+                    .insert(calcMec)
+            })
+            await supabase
+            .from('tesados')
+            .delete()
+            .eq('vanoId',vanoId)
+            .then( async () => {
+                await supabase
+                    .from('tesados')
+                    .insert(tTesado)
+            })
 
     }
 
-    const calcMecanico = () => {
-        const arrConds1 = condClimas
-        const arrConds2 = condClimas
-        const D = cond.diametro
-        const S = cond.seccion
-        const P = cond.peso/1000
-        const R = tiroMax
-        const ct = cond.coef_t
-        const ce = cond.coef_e
-        const v = vano.longitud
-        let calculo = []
-
-        for (let c1 of arrConds1) {
-            const pv1 = pv(zona.id, D, c1.viento)
-            const ph1 = ph(zona.id, D, c1.hielo)
-            const pt1 = Math.sqrt( Math.pow(P + ph1, 2) + pv1 * pv1)
-            const ang1 = Math.atan(pv1/(P+ph1)) / Math.PI * 180
-            const T1 = R
-            const f1 = v * v * pt1 / 8 / T1
-            const f1h = f1 * Math.sin(ang1 / 180 * Math.PI)
-            const f1v = f1 * Math.cos(ang1 / 180 * Math.PI)
-            const k1 = v * v * pt1 * pt1 / 24 / T1 / T1 - ct * c1.temp - T1 / ce / S
-            calculo.push({
-                id: c1.id,
-                condicion: c1.nombre,
-                temp: c1.temp,
-                viento: c1.viento,
-                hielo: c1.hielo,
-                PT: T1/S,
-                T: T1,
-                FT: f1,
-                FH: f1h,
-                FV: f1v,
-                Ang: ang1
-            })
-            for (let c2 of arrConds2) {
-                if (c1.id !== c2.id) {
-                    const pv2 = pv(zona.id, D, c2.viento)
-                    const ph2 = ph(zona.id, D, c2.hielo)
-                    const pt2 = Math.sqrt( Math.pow(P + ph2, 2) + pv2 * pv2)
-                    const ang2 = Math.atan(pv2/(P+ph2)) / Math.PI * 180
-                    const k2 = ( k1 + ct * c2.temp) * ce * S
-                    const k3 = v * v * pt2 * pt2 * ce * S / 24
-                    const T2 = newton(k2,k3)
-                    const f2 = v * v * pt2 / 8 / T2
-                    const f2h = f2 * Math.sin(ang2 / 180 * Math.PI)
-                    const f2v = f2 * Math.cos(ang2 / 180 * Math.PI)
-                    if (T2 >= T1) {
-                        calculo = []
-                        break
-                    } else {
-                        calculo.push({
-                            id: c2.id,
-                            condicion: c2.nombre,
-                            temp: c2.temp,
-                            viento: c2.viento,
-                            hielo: c2.hielo,
-                            PT: T2/S,
-                            T: T2,
-                            FT: f2,
-                            FH: f2h,
-                            FV: f2v,
-                            Ang: ang2
-                        })      
-                    }
-                }                
-            }
-            if (calculo.length === arrConds1.length) {
-                setCalcMec(calculo.sort( (a,b)=>(a.id - b.id)))
-                break
-            }
+    const calculaVano = () => {
+        if (tiroMax) {
+        const calculos = calcMecanico(zona, condClimas, cond, vano, tiroMax)
+        setCalcMec(calculos.calculoMecanico)
+        setTTesado(calculos.tablaTesado)
+        setVano(calculos.vano)
+        setFlechaMax(calculos.vano.flechaMax)
+        } else {
+            alert('Debe indicar Tiro o Tensión Máximos')
         }
     }
+
 
     return(
         <Box sx={{
@@ -182,10 +178,10 @@ const VanosCalc = () => {
             flexDirection: 'column',
             justifyContent: 'flex-start',
             alignItems: 'flex-start',
-            mt: 2, ml: 2, width: windowWidth
+            mt: 1, ml: 2, width: windowWidth
             
         }}>
-            <Typography variant="h4" sx={{ ml: 4}}>Cálculo del vano: <b>{vano && vano.orden}</b></Typography>
+            <Typography variant="h5" sx={{ ml: 4}}>Cálculo del vano: <b>{vano && vano.orden}</b></Typography>
             <Box sx={{
                 display:' flex',
                 flexDirection: 'row',
@@ -202,51 +198,25 @@ const VanosCalc = () => {
                 </Box>}
                 <Box sx={{ ml: 16 }}>
                     <Box sx={{ mb: 1}}><b>Zona Climática: {zona && zona.nombre}</b></Box>
-                    <Box sx={{ mb: 1}}><b>Longitud del Vano [m]: {vano && vano.longitud}</b></Box>
+                     <Box sx={{ mb: 1}}><b>Longitud del Vano [m]: {vano && vano.longitud}</b></Box>
                     <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
-                        <TextField id="maxTiro" label="Tiro máx [kg]" size="small" type="number" value={tiroMax && tiroMax.toFixed(3)} sx={{ mt: 1 }} onChange={handleTiro} />
-                        <TextField id="maxTension" label="Tensión máx [kg/mm2]" size="small" type="number" value={tensionMax && tensionMax.toFixed(3)} sx={{ mt: 1 }} onChange={handleTension} />
+                        <TextField id="maxTiro" label="Tiro máx [kg]" size="small" type="number" value={tiroMax && tiroMax.toFixed(3)} sx={{ mt: 1, mr:1, width: 120 }} onChange={handleTiro} />
+                        <TextField id="maxTension" label="Tensión máx [kg/mm2]" size="small" type="number" value={tensionMax && tensionMax.toFixed(3)} sx={{ mt: 1, mr:1, width: 120 }} onChange={handleTension} />
+                        <TextField id="maxFlecha" label="FLecha máx [m]" size="small" type="number" value={flechaMax && flechaMax.toFixed(3)} sx={{ mt: 1, width: 120 }} onChange={handleTension} />
                     </Box>
                     <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
-                        <Button variant="contained" onClick={calcMecanico} sx={{ m: 1.5}}>Calcular</Button>
-                        <Button variant="contained" color="error" onClick={saveCalc} sx={{ m: 1.5}}>Guardar</Button>
+                        <Button variant="contained" onClick={calculaVano} sx={{ m: 1.5, width: 70}}>Calcular</Button>
+                        <Button variant="contained" color="error" onClick={saveCalc} sx={{ m: 1.5, width: 70}}>Guardar</Button>
                     </Box>
                 </Box>
             </Box>
-            <TableContainer component={Paper}>
-                <Table size="small">
-                    <TableHead>
-                        <TableRow className="classes.root">
-                            <TableCell align="center">Condición</TableCell>
-                            <TableCell align="center">Temp [°C]</TableCell>
-                            <TableCell align="center">Viento [km/h]</TableCell>
-                            <TableCell align="center">Hielo [mm]</TableCell>
-                            <TableCell align="center">Tensión [kg/mm2]</TableCell>
-                            <TableCell align="center">Tiro [kg]</TableCell>
-                            <TableCell align="center">Flecha T [m]</TableCell>
-                            <TableCell align="center">Flecha H [m]</TableCell>
-                            <TableCell align="center">Flecha V [m]</TableCell>
-                            <TableCell align="center">Ángulo [°]</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {calcMec && calcMec.map( (c)=> {
-                            return <TableRow key={c.id}>
-                                <TableCell align="center">{c.condicion}</TableCell>
-                                <TableCell align="center">{c.temp}</TableCell>
-                                <TableCell align="center">{c.viento}</TableCell>
-                                <TableCell align="center">{c.hielo}</TableCell>
-                                <TableCell align="center">{c.PT.toFixed(2)}</TableCell>
-                                <TableCell align="center">{c.T.toFixed(2)}</TableCell>
-                                <TableCell align="center">{c.FT.toFixed(2)}</TableCell>
-                                <TableCell align="center">{c.FH.toFixed(2)}</TableCell>
-                                <TableCell align="center">{c.FV.toFixed(2)}</TableCell>
-                                <TableCell align="center">{c.Ang.toFixed(2)}</TableCell>
-                            </TableRow>
-                        })}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+            { calcMec && <TablaCalcMec calcMec={calcMec} />}
+            <Typography sx={{ ml: 4 }}><b>Tabla de Tesado</b></Typography>
+            { tTesado && <TablaTesado ttesado={tTesado} />}
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
+                <Button component={Link} to={'/vanos/'+(vano && vano.projectId)} variant="contained" color="back" onClick={saveCalc} sx={{ m: 1.5, width: 70, color: 'white'}}>Vanos</Button>
+                <Button component={Link} to={'/project/'+(vano && vano.projectId)} variant="contained" color="back" onClick={saveCalc} sx={{ m: 1.5, width: 70, color: 'white'}}>Proyecto</Button>
+            </Box>
         </Box>
     )
 }

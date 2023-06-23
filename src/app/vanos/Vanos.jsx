@@ -16,12 +16,12 @@ const Vanos = () => {
     const [zonas, setZonas] = React.useState([])
     const vanosWidth = window.innerWidth - dw - 40
 
-    const getVanos = async () => {
+    const getVanos = async (Id) => {
         const resVanos = await supabase
             .from('vanos')
             .select()
+            .eq( 'projectId', Id)
             .order('orden')
-            .eq( 'projectId', projectId)
         if (resVanos.error) {
             alert('Error fetch vanos')
             return []
@@ -57,12 +57,12 @@ const Vanos = () => {
 
     React.useEffect( () => {
 
-        Promise.all([getVanos(), getCondutors(), getZonas()]).then( (results) => {
+        Promise.all([getVanos(projectId), getCondutors(), getZonas()]).then( (results) => {
             setConductors(results[1])
             setZonas(results[2])
             setVanos(results[0])
         })
-    }, [])
+    },[projectId])
 
     const handleCHOrden = (event, index, vanoId) => {
         let arrAux = [...vanos]
@@ -102,7 +102,7 @@ const Vanos = () => {
                 alert('Error insert vano'+ resInsVano.error.message)
             }
             if (resInsVano.data) {
-                getVanos().then( (data)=>setVanos(data))
+                getVanos(projectId).then( (data)=>setVanos(data))
             }
         }
 
@@ -128,7 +128,7 @@ const Vanos = () => {
             if (resDelVano.error) {
                 alert('Error delete Vano'+resDelVano.error.message)
             } else {
-                getVanos().then( (data)=> setVanos(data))
+                getVanos(projectId).then( (data)=> setVanos(data))
             }
         }
 
@@ -149,6 +149,7 @@ const Vanos = () => {
                     <Typography variant="h5"><b>Vanos del Proyecto</b></Typography>
                 </Box>
                 <Button variant="contained" onClick={handleAddVano}>Nuevo Vano</Button>
+                <Button variant="contained" color="back" sx={{ color: 'white', ml: 1}}>Proyecto</Button>
             </Box>
             {vanos.map( (v, index) => {
                 return (
@@ -172,6 +173,8 @@ const Vanos = () => {
                                 })
                             }
                         </TextField>
+                        <TextField id="tiroMax" label="Tiro Max [kg]" value={v.tiroMax.toFixed(2)} sx={{ width: 90, mr: 0.5 }} size="small" inputProps={{ readOnly: true}} />
+                        <TextField id="flechaMax" label="Flecha Max [m]" value={v.flechaMax.toFixed(2)} sx={{ width: 90, mr: 0.5 }} size="small" inputProps={{ readOnly: true}} />
                         <Box sx={{ flexGrow: 1}}/>
                         <IconButton component={Link} to={'/vanocalc/'+v.id}><CalculateIcon /></IconButton>
                         <IconButton onClick={() => handleDelete(v.id)}><DeleteIcon /></IconButton>
